@@ -1,3 +1,8 @@
+## Command
+
+python -m DeskPets_repo.main --me jinho --partner sanga
+
+
 ## TODO
 
 1. 메시지 기능은 추가되었으나 기존 프레임워크 동작으로 인해 묻힘
@@ -9,5 +14,6 @@
 2. 현재 임시경로 (dropbox)로 처리되고 있는 부분 실제 구현체 고안
    
 2.a light user위한 무료 클라우드 찾아보기 (update 잦은)
+
 
 
