@@ -44,7 +44,6 @@ class Pet:
             self.drag_offset = (0, 0)
             self.drag_last_pos = None
             self.throw_velocity = [0.0, 0.0]
-            self.drag_velocity = [0.0, 0.0]
             self._right_click_consumed = False
 
             species_data = PETS_DATA[species]
@@ -132,7 +131,7 @@ class Pet:
             if right_down and in_bounds and not self._right_click_consumed:
                 self._right_click_consumed = True
                 if getattr(self, "main_window", None):
-                    self.main_window.check_messages(force_feedback=True)
+                    self.main_window.check_messages()
             if not right_down:
                 self._right_click_consumed = False
 
@@ -141,7 +140,6 @@ class Pet:
                 self.drag_offset = (mouse_x - self.x, mouse_y - self.y)
                 self.drag_last_pos = (mouse_x, mouse_y)
                 self.throw_velocity = [0.0, 0.0]
-                self.drag_velocity = [0.0, 0.0]
 
             if self.dragging:
                 if left_down:
@@ -150,16 +148,15 @@ class Pet:
                     if self.drag_last_pos:
                         dx = mouse_x - self.drag_last_pos[0]
                         dy = mouse_y - self.drag_last_pos[1]
-                        self.drag_velocity[0] = self.drag_velocity[0] * 0.6 + dx * 0.4
-                        self.drag_velocity[1] = self.drag_velocity[1] * 0.6 + dy * 0.4
+                        self.throw_velocity = [dx, dy]
                     self.drag_last_pos = (mouse_x, mouse_y)
                     self.x = max(0, min(new_x, self.screen_width - self.width))
                     self.y = max(0, min(new_y, self.screen_height - self.height))
                     return
                 self.dragging = False
-                self.throw_velocity = [self.drag_velocity[0] * 1.4, self.drag_velocity[1] * 1.4]
+                if self.throw_velocity:
+                    self.throw_velocity = [self.throw_velocity[0] * 1.5, self.throw_velocity[1] * 1.5]
                 self.drag_last_pos = None
-                self.drag_velocity = [0.0, 0.0]
 
             if self._apply_throw():
                 return
@@ -211,36 +208,26 @@ class Pet:
                 self.throw_velocity = [0.0, 0.0]
                 return False
 
-            gravity = 0.6
-            air_drag = 0.985
-
-            vy += gravity
             self.x += vx
             self.y += vy
 
-            vx *= air_drag
-            vy *= air_drag
+            self.throw_velocity[0] *= 0.85
+            self.throw_velocity[1] *= 0.85
 
             max_x = self.screen_width - self.width
             max_y = self.screen_height - self.height
             if self.x < 0:
                 self.x = 0
-                vx = 0.0
-                vy = 0.0
+                self.throw_velocity[0] = -self.throw_velocity[0] * 0.6
             if self.x > max_x:
                 self.x = max_x
-                vx = 0.0
-                vy = 0.0
+                self.throw_velocity[0] = -self.throw_velocity[0] * 0.6
             if self.y < 0:
                 self.y = 0
-                vx = 0.0
-                vy = 0.0
+                self.throw_velocity[1] = -self.throw_velocity[1] * 0.6
             if self.y > max_y:
                 self.y = max_y
-                vx = 0.0
-                vy = 0.0
-
-            self.throw_velocity = [vx, vy]
+                self.throw_velocity[1] = -self.throw_velocity[1] * 0.6
 
             return True
         except Exception as e:
