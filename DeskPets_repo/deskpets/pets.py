@@ -40,6 +40,12 @@ class Pet:
             self.size = size
             self.screen_width = user32.GetSystemMetrics(0)
             self.screen_height = user32.GetSystemMetrics(1)
+            self.dragging = False
+            self.drag_offset = (0, 0)
+            self.drag_last_pos = None
+            self.throw_velocity = [0.0, 0.0]
+            self.drag_velocity = [0.0, 0.0]
+            self._right_click_consumed = False
 
             species_data = PETS_DATA[species]
             defaults = species_data.get("defaults", {})
@@ -116,6 +122,48 @@ class Pet:
             user32.GetCursorPos(ctypes.byref(pt))
             mouse_x, mouse_y = pt.x, pt.y
 
+            left_down = bool(user32.GetAsyncKeyState(0x01) & 0x8000)
+            right_down = bool(user32.GetAsyncKeyState(0x02) & 0x8000)
+            in_bounds = (
+                self.x <= mouse_x <= self.x + self.width
+                and self.y <= mouse_y <= self.y + self.height
+            )
+
+            if right_down and in_bounds and not self._right_click_consumed:
+                self._right_click_consumed = True
+                if getattr(self, "main_window", None):
+                    self.main_window.check_messages()
+            if not right_down:
+                self._right_click_consumed = False
+
+            if left_down and in_bounds and not self.dragging:
+                self.dragging = True
+                self.drag_offset = (mouse_x - self.x, mouse_y - self.y)
+                self.drag_last_pos = (mouse_x, mouse_y)
+                self.throw_velocity = [0.0, 0.0]
+                self.drag_velocity = [0.0, 0.0]
+
+            if self.dragging:
+                if left_down:
+                    new_x = mouse_x - self.drag_offset[0]
+                    new_y = mouse_y - self.drag_offset[1]
+                    if self.drag_last_pos:
+                        dx = mouse_x - self.drag_last_pos[0]
+                        dy = mouse_y - self.drag_last_pos[1]
+                        self.drag_velocity[0] = self.drag_velocity[0] * 0.6 + dx * 0.4
+                        self.drag_velocity[1] = self.drag_velocity[1] * 0.6 + dy * 0.4
+                    self.drag_last_pos = (mouse_x, mouse_y)
+                    self.x = max(0, min(new_x, self.screen_width - self.width))
+                    self.y = max(0, min(new_y, self.screen_height - self.height))
+                    return
+                self.dragging = False
+                self.throw_velocity = [self.drag_velocity[0] * 1.4, self.drag_velocity[1] * 1.4]
+                self.drag_last_pos = None
+                self.drag_velocity = [0.0, 0.0]
+
+            if self._apply_throw():
+                return
+
             distance = ((self.x - mouse_x) ** 2 + (self.y - mouse_y) ** 2) ** 0.5
 
             if self.wall_scene_step is not None:
@@ -155,6 +203,55 @@ class Pet:
         except Exception as e:
             print(e)
             traceback.print_exc()
+
+    def _apply_throw(self):
+        try:
+            vx, vy = self.throw_velocity
+            if abs(vx) < 0.2 and abs(vy) < 0.2:
+                self.throw_velocity = [0.0, 0.0]
+                return False
+
+            gravity = 0.6
+            air_drag = 0.985
+            bounce_damp = 0.55
+            ground_friction = 0.82
+
+            vy += gravity
+            self.x += vx
+            self.y += vy
+
+            vx *= air_drag
+            vy *= air_drag
+
+            max_x = self.screen_width - self.width
+            max_y = self.screen_height - self.height
+            if self.x < 0:
+                self.x = 0
+                vx = -vx * bounce_damp
+            if self.x > max_x:
+                self.x = max_x
+                vx = -vx * bounce_damp
+            if self.y < 0:
+                self.y = 0
+                vy = -vy * bounce_damp
+            if self.y > max_y:
+                self.y = max_y
+                vy = -vy * bounce_damp
+                vx *= ground_friction
+
+                if abs(vy) < 0.8:
+                    vy = 0.0
+                    vx *= ground_friction
+                    if abs(vx) < 0.2:
+                        vx = 0.0
+
+            self.throw_velocity = [vx, vy]
+
+            return True
+        except Exception as e:
+            print(e)
+            traceback.print_exc()
+            return False
 
     def frame_animation(self):
         try:
