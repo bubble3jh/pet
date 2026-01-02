@@ -247,16 +247,25 @@ class MainWindow(QtWidgets.QMainWindow):
             except Exception:
                 pass
 
-    def check_messages(self):
+    def check_messages(self, force_feedback: bool = False):
         """
         Poll inbox and display new messages as a bubble near the first pet.
         """
         try:
             if not self.shared_dir or not self.me:
+                if force_feedback:
+                    self.tray_icon.showMessage(
+                        "DeskPets Messaging",
+                        "Messaging not configured.\nRun with --me --partner --shared.",
+                        QtWidgets.QSystemTrayIcon.MessageIcon.Warning,
+                        4000,
+                    )
                 return
 
             msgs = fetch_undelivered(self.shared_dir, user_id=self.me)
             if not msgs:
+                if force_feedback:
+                    self.bubble.show_text("Inbox empty.", seconds=3.0)
                 return
 
             # Build bubble text (cap length to avoid enormous bubble)
