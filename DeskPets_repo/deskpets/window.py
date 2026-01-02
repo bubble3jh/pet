@@ -2,9 +2,11 @@ import ctypes
 import os
 import traceback
 
-from PyQt6 import QtWidgets, QtGui
+from PyQt6 import QtWidgets, QtGui, QtCore
 
+from .bubble import SpeechBubble
 from .credits import BrowserWindow
+from .messaging import send_message, fetch_undelivered
 from .petworker import PetWorker, load_pets
 from .remove_alpha import GifHelper
 from .selector import PetSelector
@@ -90,9 +92,23 @@ def close(pet):
 
 
 class MainWindow(QtWidgets.QMainWindow):
-    def __init__(self, app):
+    def __init__(self, app, me=None, partner=None, shared_dir=None):
         try:
             super().__init__()
+            self.me = me
+            self.partner = partner
+            self.shared_dir = shared_dir  # Path or None
+
+            self.bubble = SpeechBubble()
+            self._bubble_follow_timer = QtCore.QTimer(self)
+            self._bubble_follow_timer.setInterval(120)
+            self._bubble_follow_timer.timeout.connect(self._follow_first_pet)
+            self._bubble_follow_timer.start()
+
+            self._msg_timer = QtCore.QTimer(self)
+            self._msg_timer.setInterval(30_000)
+            self._msg_timer.timeout.connect(self.check_messages)
+            self._msg_timer.start()
             self.setWindowTitle("Pet Manager")
             self.resize(800, 600)
             self.setWindowIcon(QtGui.QIcon(LOGO_DIR))
@@ -133,6 +149,10 @@ class MainWindow(QtWidgets.QMainWindow):
             show_action = QtGui.QAction("Show", self)
             refresh_action = QtGui.QAction("Refresh", self)
             quit_action = QtGui.QAction("Quit", self)
+            send_msg_action = QtGui.QAction("Send Message", self)
+            check_msg_action = QtGui.QAction("Check Messages", self)
+            send_msg_action.triggered.connect(self.send_message_ui)
+            check_msg_action.triggered.connect(self.check_messages)
             show_action.triggered.connect(self.show_window)
             refresh_action.triggered.connect(self.start_refresh)
             quit_action.triggered.connect(QtWidgets.QApplication.instance().quit)
@@ -141,6 +161,9 @@ class MainWindow(QtWidgets.QMainWindow):
             tray_menu.addAction(refresh_action)
             tray_menu.addSeparator()
             tray_menu.addAction(quit_action)
+            tray_menu.addAction(send_msg_action)
+            tray_menu.addAction(check_msg_action)
+            tray_menu.addSeparator()
             self.tray_icon.setContextMenu(tray_menu)
             self.tray_icon.show()
 
@@ -150,6 +173,103 @@ class MainWindow(QtWidgets.QMainWindow):
         except Exception as e:
             print(e)
             traceback.print_exc()
+
+    def _first_pet(self):
+        pets = getattr(self, "pets", []) or []
+        return pets[0] if pets else None
+
+    def _follow_first_pet(self):
+        try:
+            if not self.bubble.isVisible():
+                return
+            pet = self._first_pet()
+            if not pet:
+                return
+            bx = int(pet.x + pet.width + 10)
+            by = int(pet.y - 10)
+            self.bubble.set_anchor(bx, by)
+        except Exception:
+            pass
+
+    def send_message_ui(self):
+        try:
+            if not self.shared_dir or not self.me or not self.partner:
+                self.tray_icon.showMessage(
+                    "DeskPets Messaging",
+                    "Messaging not configured.\nRun with --me --partner --shared.",
+                    QtWidgets.QSystemTrayIcon.MessageIcon.Warning,
+                    4000,
+                )
+                return
+
+            text, ok = QtWidgets.QInputDialog.getMultiLineText(
+                self, "Send Message", f"To {self.partner}:", ""
+            )
+            if not ok:
+                return
+            text = (text or "").strip()
+            if not text:
+                return
+
+            send_message(self.shared_dir, sender=self.me, receiver=self.partner, text=text)
+            self.tray_icon.showMessage(
+                "DeskPets Messaging",
+                f"Sent to {self.partner}.",
+                QtWidgets.QSystemTrayIcon.MessageIcon.Information,
+                2000,
+            )
+        except Exception as e:
+            try:
+                self.tray_icon.showMessage(
+                    "DeskPets Messaging",
+                    f"Send failed: {e}",
+                    QtWidgets.QSystemTrayIcon.MessageIcon.Critical,
+                    4000,
+                )
+            except Exception:
+                pass
+
+    def check_messages(self, force_feedback: bool = False):
+        try:
+            if not self.shared_dir or not self.me:
+                if force_feedback:
+                    self.tray_icon.showMessage(
+                        "DeskPets Messaging",
+                        "Messaging not configured.\nRun with --me --partner --shared.",
+                        QtWidgets.QSystemTrayIcon.MessageIcon.Warning,
+                        4000,
+                    )
+                return
+
+            msgs = fetch_undelivered(self.shared_dir, user_id=self.me)
+            if not msgs:
+                if force_feedback:
+                    self.bubble.show_text("Inbox empty.", seconds=3.0)
+                return
+
+            chunks = []
+            for m in msgs[:5]:
+                sender = m.get("sender", "?")
+                text = (m.get("text", "") or "").strip()
+                if text:
+                    chunks.append(f"From {sender}:\n{text}")
+
+            if not chunks:
+                return
+
+            bubble_text = "\n\n---\n\n".join(chunks)
+            if len(bubble_text) > 800:
+                bubble_text = bubble_text[:800] + "\n...\n"
+
+            pet = self._first_pet()
+            if pet:
+                bx = int(pet.x + pet.width + 10)
+                by = int(pet.y - 10)
+                self.bubble.set_anchor(bx, by)
+
+            self.bubble.show_text(bubble_text, seconds=12.0)
+        except Exception:
+            pass
 
     def start_refresh(self):
         try:

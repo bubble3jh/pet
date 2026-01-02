@@ -20,7 +20,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--me", default="", help="Your user id (e.g., jinho)")
     parser.add_argument("--partner", default="", help="Partner user id (e.g., sanga)")
-    parser.add_argument("--shared", default="", help="Shared folder path (Dropbox/Drive sync folder)")
+    parser.add_argument("--shared", default="", help="Shared local folder path")
     args, _ = parser.parse_known_args()
     
     LOG_PATH = Path.home() / "deskpets_debug.log"
