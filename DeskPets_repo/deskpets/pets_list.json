@@ -5,7 +5,7 @@
             "colors": [
                 "white"
             ],
-            "enabled": true,
+            "enabled": false,
             "size": "Small"
         },
         {
@@ -127,7 +127,7 @@
             "colors": [
                 "brown"
             ],
-            "enabled": true,
+            "enabled": false,
             "size": "Original"
         },
         {
