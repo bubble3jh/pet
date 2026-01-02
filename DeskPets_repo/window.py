@@ -55,7 +55,9 @@ def draw_frame(self, hbitmap):
         blend.SourceConstantAlpha = 255
         blend.AlphaFormat = 1
 
-        pt_pos = POINT(self.x, self.y)
+        # modified
+        pt_pos = POINT(int(round(self.x)), int(round(self.y)))
+
         size = SIZE(self.width, self.height)
         pt_src = POINT(0, 0)
 
