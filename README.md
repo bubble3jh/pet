@@ -15,5 +15,5 @@ python -m DeskPets_repo.main --me jinho --partner sanga
    
 2.a light user위한 무료 클라우드 찾아보기 (update 잦은)
 
-
-
+3. 벽/바닥 튕기기 삭제
+4. 우클릭 안되는 문제 해결
